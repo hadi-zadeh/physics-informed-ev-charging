@@ -1,0 +1,4 @@
+Strategy,Min Voltage (p.u.),Max Voltage (p.u.),Voltage Violations (<0.95 pu),Peak Substation Load (kW),Daily Active Losses (kWh),Loss Reduction vs UC (%)
+Uncontrolled Charging (UC),0.8356355365824768,1.0,471,6331.495561845232,6181.735091716349,0.0
+Baseline B0 (Uniform BC),0.8494925345064868,1.0,481,5833.556636192759,6083.622269676994,1.58714051287686
+Proposed E2 (Physics-Informed),0.8744881053419956,1.0,495,5422.839705744633,5853.029637153715,5.317365588879832

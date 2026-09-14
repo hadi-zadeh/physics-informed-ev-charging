@@ -1,0 +1,50 @@
+{
+  "dataset_name": "Solar Prosumer EV Charging Benchmark",
+  "geographic_sources": [
+    "CAISO (California, USA)",
+    "PJM Interconnection (Eastern USA)",
+    "UK Power Networks (East Anglia, UK)"
+  ],
+  "total_scenarios": 813,
+  "partitions": {
+    "training": {
+      "scenario_count": 546,
+      "steps_count": 7652,
+      "sources": {
+        "caiso": "2019.8 and 2020.8 (days 1 to 546)",
+        "pjm": "2019 and 2020 LMP spot prices",
+        "ukpn": "Residential baseload profile"
+      },
+      "description": "Historical training dataset for expert behavior cloning and composite loss backpropagation."
+    },
+    "validation": {
+      "scenario_count": 87,
+      "steps_count": 1221,
+      "sources": {
+        "caiso": "2020.8 (days 550 to 636)",
+        "pjm": "2020 LMP spot prices",
+        "ukpn": "Residential baseload profile"
+      },
+      "description": "Hyperparameter tuning and early stopping checkpoint selection."
+    },
+    "test": {
+      "scenario_count": 180,
+      "steps_count": 2532,
+      "sources": {
+        "caiso": "2020.8 (days 640 to 730)",
+        "pjm": "2021 LMP spot prices (unseen future calendar year)",
+        "ukpn": "Residential baseload profile"
+      },
+      "description": "Frozen, immutable out-of-sample benchmark evaluated across 5 random seeds (25 evaluations)."
+    }
+  },
+  "temporal_overlap_disclosure": {
+    "affected_days": "Global Days 547..549 (July 1-3, 2020)",
+    "affected_streams": "CAISO spot prices and UKPN baseload",
+    "affected_scenarios_count": 3,
+    "affected_scenarios_percentage": 1.67,
+    "provenance": "Inherited from baseline benchmark indexing of Huang et al. (IEEE T-ITS 2024 / ZhenhaoH/IL_EVCS)",
+    "pv_disjointness": "Solar PV generation in test set is 100% disjoint, derived from calendar year 2021",
+    "sensitivity_check": "Omitting the 3 overlapping scenarios yields 32.98% boundary correction reduction (p = 4.40e-19), confirming test set robustness."
+  }
+}

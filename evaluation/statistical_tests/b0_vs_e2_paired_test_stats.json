@@ -1,0 +1,31 @@
+{
+  "comparison": "B0_vs_E2_Frozen_Test",
+  "n_scenarios": 180,
+  "mean_cost_diff_usd": -0.011544338030423661,
+  "median_cost_diff_usd": -0.01148537177700365,
+  "cost_bootstrap_ci_95": [
+    -0.01618852114182598,
+    -0.007013198174604861
+  ],
+  "cost_wilcoxon_p": 2.531334961482662e-08,
+  "cost_cohen_d": -0.36554277202890106,
+  "cost_win_rate_pct": 71.66666666666667,
+  "mean_gap_diff_pct": -1.1589829818849111,
+  "median_gap_diff_pct": -0.9587492632526674,
+  "gap_bootstrap_ci_95": [
+    -1.697246719587868,
+    -0.639642038732987
+  ],
+  "gap_wilcoxon_p": 6.783002889906244e-08,
+  "gap_cohen_d": -0.31952378470819337,
+  "gap_win_rate_pct": 71.66666666666667,
+  "mean_spp_clip_diff_kwh": -2.1407833280250745,
+  "median_spp_clip_diff_kwh": -1.6154691432755905,
+  "spp_clip_bootstrap_ci_95": [
+    -2.5621389265472367,
+    -1.733518070471564
+  ],
+  "spp_clip_wilcoxon_p": 1.0364562505856464e-19,
+  "spp_clip_cohen_d": -0.7469236476847428,
+  "spp_clip_win_rate_pct": 85.0
+}

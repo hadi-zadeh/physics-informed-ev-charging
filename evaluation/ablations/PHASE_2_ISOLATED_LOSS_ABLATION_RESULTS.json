@@ -1,0 +1,208 @@
+{
+  "phase": "Phase 2 — Isolated Loss Component Ablations",
+  "protocol": "Phase 3.5 Validation Sensitivity Protocol (87 Validation Scenarios, Seeds [1, 2, 3])",
+  "host": "HADI-PC",
+  "device": "NVIDIA GeForce RTX 4060 (8 GB VRAM)",
+  "cpu": "12th Gen Intel Core i9-12900K",
+  "experiments": {
+    "Setting_F": {
+      "name": "Boundary_Only",
+      "code": "F",
+      "description": "Isolated Boundary Loss (0.00, 0.05)",
+      "lambda_tariff": 0.0,
+      "lambda_boundary": 0.05,
+      "scenario_count": 87,
+      "seeds": [1, 2, 3],
+      "aggregated_metrics": {
+        "val_cost_mean": 96.9733,
+        "val_cost_std": 0.6713,
+        "val_gap_pct_mean": -0.3833,
+        "val_gap_pct_std": 0.6835,
+        "spp_clipping_kwh_mean": 217.8267,
+        "spp_clipping_kwh_std": 30.4912,
+        "spp_interventions_mean": 219.67,
+        "spp_interventions_std": 38.31,
+        "raw_mae_kw_mean": 1.3007,
+        "raw_mae_kw_std": 0.2947,
+        "final_mae_kw_mean": 1.5737,
+        "final_mae_kw_std": 0.3256
+      },
+      "seed_runs": [
+        {
+          "seed": 1,
+          "best_epoch": 340,
+          "val_cost": 97.22,
+          "val_gap_pct": -0.13,
+          "spp_clipping_kwh": 200.80,
+          "spp_interventions": 185,
+          "raw_mae_kw": 1.128,
+          "final_mae_kw": 1.380,
+          "train_time_sec": 75.9,
+          "checkpoint": "Research/Experiments/Phase3_6_IsolatedLossAblations/F_boundary_only/seed_1/best.pt"
+        },
+        {
+          "seed": 2,
+          "best_epoch": 210,
+          "val_cost": 96.06,
+          "val_gap_pct": -1.32,
+          "spp_clipping_kwh": 260.64,
+          "spp_interventions": 273,
+          "raw_mae_kw": 1.716,
+          "final_mae_kw": 2.032,
+          "train_time_sec": 71.1,
+          "checkpoint": "Research/Experiments/Phase3_6_IsolatedLossAblations/F_boundary_only/seed_2/best.pt"
+        },
+        {
+          "seed": 3,
+          "best_epoch": 385,
+          "val_cost": 97.64,
+          "val_gap_pct": 0.30,
+          "spp_clipping_kwh": 192.04,
+          "spp_interventions": 201,
+          "raw_mae_kw": 1.058,
+          "final_mae_kw": 1.309,
+          "train_time_sec": 75.1,
+          "checkpoint": "Research/Experiments/Phase3_6_IsolatedLossAblations/F_boundary_only/seed_3/best.pt"
+        }
+      ],
+      "config_path": "Research/Experiments/Phase3_6_IsolatedLossAblations/F_boundary_only/config.json",
+      "summary_path": "Research/Experiments/Phase3_6_IsolatedLossAblations/F_boundary_only/f_summary.json"
+    },
+    "Setting_G": {
+      "name": "Tariff_Only",
+      "code": "G",
+      "description": "Isolated Tariff Loss (0.10, 0.00)",
+      "lambda_tariff": 0.10,
+      "lambda_boundary": 0.0,
+      "scenario_count": 87,
+      "seeds": [1, 2, 3],
+      "aggregated_metrics": {
+        "val_cost_mean": 97.0900,
+        "val_cost_std": 0.1442,
+        "val_gap_pct_mean": -0.2567,
+        "val_gap_pct_std": 0.1491,
+        "spp_clipping_kwh_mean": 189.8367,
+        "spp_clipping_kwh_std": 16.1264,
+        "spp_interventions_mean": 196.67,
+        "spp_interventions_std": 6.80,
+        "raw_mae_kw_mean": 1.2670,
+        "raw_mae_kw_std": 0.1021,
+        "final_mae_kw_mean": 1.5540,
+        "final_mae_kw_std": 0.0899
+      },
+      "seed_runs": [
+        {
+          "seed": 1,
+          "best_epoch": 220,
+          "val_cost": 97.06,
+          "val_gap_pct": -0.29,
+          "spp_clipping_kwh": 203.52,
+          "spp_interventions": 194,
+          "raw_mae_kw": 1.411,
+          "final_mae_kw": 1.681,
+          "train_time_sec": 76.2,
+          "checkpoint": "Research/Experiments/Phase3_6_IsolatedLossAblations/G_tariff_only/seed_1/best.pt"
+        },
+        {
+          "seed": 2,
+          "best_epoch": 360,
+          "val_cost": 96.93,
+          "val_gap_pct": -0.42,
+          "spp_clipping_kwh": 167.19,
+          "spp_interventions": 190,
+          "raw_mae_kw": 1.189,
+          "final_mae_kw": 1.485,
+          "train_time_sec": 85.8,
+          "checkpoint": "Research/Experiments/Phase3_6_IsolatedLossAblations/G_tariff_only/seed_2/best.pt"
+        },
+        {
+          "seed": 3,
+          "best_epoch": 300,
+          "val_cost": 97.28,
+          "val_gap_pct": -0.06,
+          "spp_clipping_kwh": 198.80,
+          "spp_interventions": 206,
+          "raw_mae_kw": 1.201,
+          "final_mae_kw": 1.496,
+          "train_time_sec": 86.7,
+          "checkpoint": "Research/Experiments/Phase3_6_IsolatedLossAblations/G_tariff_only/seed_3/best.pt"
+        }
+      ],
+      "config_path": "Research/Experiments/Phase3_6_IsolatedLossAblations/G_tariff_only/config.json",
+      "summary_path": "Research/Experiments/Phase3_6_IsolatedLossAblations/G_tariff_only/g_summary.json"
+    }
+  },
+  "table_a_to_g_summary": [
+    {
+      "setting": "Setting A",
+      "lambda_tariff": 0.05,
+      "lambda_boundary": 0.05,
+      "description": "Lower Tariff (0.05, 0.05)",
+      "val_cost": "95.55 ± 1.13",
+      "val_gap_pct": "-0.91% ± 1.17%",
+      "spp_clip_kwh": "147.50 ± 29.87",
+      "spp_interv_count": "181.3 ± 20.4"
+    },
+    {
+      "setting": "Setting B",
+      "lambda_tariff": 0.10,
+      "lambda_boundary": 0.025,
+      "description": "Lower Boundary (0.10, 0.025)",
+      "val_cost": "94.30 ± 0.23",
+      "val_gap_pct": "-2.20% ± 0.24%",
+      "spp_clip_kwh": "193.01 ± 91.18",
+      "spp_interv_count": "185.3 ± 13.9"
+    },
+    {
+      "setting": "Setting C (Nominal E2)",
+      "lambda_tariff": 0.10,
+      "lambda_boundary": 0.05,
+      "description": "Nominal E2 (0.10, 0.05)",
+      "val_cost": "95.08 ± 0.64",
+      "val_gap_pct": "-1.39% ± 0.66%",
+      "spp_clip_kwh": "98.93 ± 14.63",
+      "spp_interv_count": "194.0 ± 31.6"
+    },
+    {
+      "setting": "Setting D",
+      "lambda_tariff": 0.10,
+      "lambda_boundary": 0.10,
+      "description": "Higher Boundary (0.10, 0.10)",
+      "val_cost": "96.05 ± 0.36",
+      "val_gap_pct": "-0.39% ± 0.37%",
+      "spp_clip_kwh": "121.51 ± 10.08",
+      "spp_interv_count": "207.3 ± 11.0"
+    },
+    {
+      "setting": "Setting E",
+      "lambda_tariff": 0.20,
+      "lambda_boundary": 0.05,
+      "description": "Higher Tariff (0.20, 0.05)",
+      "val_cost": "95.71 ± 1.10",
+      "val_gap_pct": "-0.74% ± 1.14%",
+      "spp_clip_kwh": "291.19 ± 179.78",
+      "spp_interv_count": "220.3 ± 28.9"
+    },
+    {
+      "setting": "Setting F (Boundary Only)",
+      "lambda_tariff": 0.00,
+      "lambda_boundary": 0.05,
+      "description": "Boundary Only (0.00, 0.05)",
+      "val_cost": "96.97 ± 0.67",
+      "val_gap_pct": "-0.38% ± 0.68%",
+      "spp_clip_kwh": "217.83 ± 30.49",
+      "spp_interv_count": "219.7 ± 38.3"
+    },
+    {
+      "setting": "Setting G (Tariff Only)",
+      "lambda_tariff": 0.10,
+      "lambda_boundary": 0.00,
+      "description": "Tariff Only (0.10, 0.00)",
+      "val_cost": "97.09 ± 0.14",
+      "val_gap_pct": "-0.26% ± 0.15%",
+      "spp_clip_kwh": "189.84 ± 16.13",
+      "spp_interv_count": "196.7 ± 6.8"
+    }
+  ],
+  "frozen_results_modified": false
+}

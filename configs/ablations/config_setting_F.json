@@ -1,0 +1,74 @@
+{
+  "experiment_id": "Setting_F",
+  "experiment_code": "F",
+  "experiment_name": "Boundary_Only",
+  "description": "Isolated Boundary Loss (0.00, 0.05)",
+  "lambda_tariff": 0.0,
+  "lambda_boundary": 0.05,
+  "model_architecture": "LSTMPolicy",
+  "model_args": {
+    "state_dim": 74,
+    "action_dim": 1,
+    "e_min": -7.0,
+    "e_max": 7.0,
+    "hidden1": 512,
+    "hidden2": 256,
+    "hidden3": 128
+  },
+  "param_count": 216321,
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "training_dataset": "CAISO 2019/2020 + PJM 2019/2020 + UKPN load",
+  "training_scenarios_count": 546,
+  "validation_dataset": "CAISO 2020 (days 550..640) + PJM 2020 + UKPN load",
+  "validation_scenarios_count": 87,
+  "training_steps_count": 7652,
+  "optimizer": "Adam",
+  "learning_rate": 0.005,
+  "weight_decay": 0.0001,
+  "gradient_clip_norm": 5.0,
+  "lr_scheduler": "CosineAnnealingWarmRestarts (T_0=200, T_mult=2, eta_min=1e-6)",
+  "max_epochs": 400,
+  "early_stopping_patience_epochs": 150,
+  "eval_interval_epochs": 5,
+  "batch_size": "Full dataset batch (tensorized, 13104 steps)",
+  "normalization": {
+    "price_bounds": [
+      0.008,
+      0.08
+    ],
+    "pv_bounds": [
+      0.0,
+      10.0
+    ],
+    "load_bounds": [
+      0.0,
+      5.5
+    ],
+    "soc_bounds": [
+      4.0,
+      40.0
+    ],
+    "time_scaling": 24.0
+  },
+  "spp_configuration": {
+    "soc_clamping": [
+      4.0,
+      40.0
+    ],
+    "charge_efficiency": 0.98,
+    "discharge_efficiency": 0.98,
+    "departure_reachability_target": 40.0,
+    "transformer_limit_kwh": 100.0
+  },
+  "lp_expert_configuration": {
+    "solver": "COIN-OR CBC / Clp",
+    "library": "Python-MIP 1.17.6",
+    "seed": 0,
+    "primal_tolerance": 1e-07,
+    "dual_tolerance": 1e-07
+  }
+}

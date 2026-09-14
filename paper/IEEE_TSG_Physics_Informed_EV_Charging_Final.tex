@@ -1,0 +1,540 @@
+\documentclass[journal]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{url}
+\usepackage{microtype}
+\usepackage[caption=false,font=footnotesize]{subfig}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\hyphenation{op-tical net-works semi-conduc-tor}
+
+\begin{document}
+
+\title{Physics-Informed Cost-and-Boundary-Aware Deep Imitation Learning for Residential EV Charging in Solar Prosumer Systems}
+
+\author{Hadi~Abdollahzadeh and~Morteza~Mollajafari%
+\thanks{Manuscript received September 14, 2026; revised September 14, 2026. This work was supported by the School of Automotive Engineering at Iran University of Science and Technology.}%
+\thanks{Hadi Abdollahzadeh and Morteza Mollajafari are with the School of Automotive Engineering, Iran University of Science and Technology, Tehran 16846-13114, Iran (e-mail: Abdollahzadeh\_hadi@auto.iust.ac.ir; mollajafari@iust.ac.ir).}%
+\thanks{Color versions of one or more figures in this article are available at https://doi.org/10.1109/TSG.2026.xxxxxxx.}%
+\thanks{Digital Object Identifier 10.1109/TSG.2026.xxxxxxx}}
+
+\markboth{IEEE Transactions on Smart Grid,~Vol.~XX, No.~XX,~September~2026}%
+{Abdollahzadeh \MakeLowercase{\textit{et al.}}: Physics-Informed Cost-and-Boundary-Aware Deep Imitation Learning for EV Charging}
+
+\maketitle
+
+\begin{abstract}
+Deep imitation learning offers a computationally tractable pathway for real-time electric vehicle (EV) charging scheduling by distilling offline numerical optimizations into compact neural policies. However, conventional behavior cloning minimizes price-blind tracking errors without considering electricity tariff asymmetry or downstream boundary enforcement. Consequently, unconstrained neural outputs violate physical battery limits, triggering safety post-processing (SPP) overrides that distort closed-loop State-of-Charge (SoC) trajectories and degrade economic performance. This paper resolves this objective mismatch through a physics-informed, cost-and-boundary-aware imitation learning framework. By embedding normalized electricity tariffs and differentiable next-step SoC soft-barrier penalties directly into backpropagation, the neural policy develops intrinsic constraint awareness while a deterministic three-step SPP guarantees hard operational safety during deployment. Evaluated across 180 frozen multi-market scenarios from CAISO, PJM, and UK Power Networks over five independent random seeds, the proposed architecture reduces Action Boundary Correction Energy by 33.81\% ($p = 1.04 \times 10^{-19}$) and achieves an 85.00\% boundary-correction win rate while maintaining near-clairvoyant linear programming cost parity ($-0.25\% \pm 1.15\%$). Extended multi-scale validation demonstrates robust constraint satisfaction under eight out-of-distribution stress regimes, a 31.67\% reduction in model-based battery degradation wear cost, 908.7~kW substation peak load shaving on the IEEE 33-bus benchmark feeder, and sub-50~ms deterministic execution on an ARM Cortex-M4 microcontroller.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Electric vehicle charging, imitation learning, physics-informed machine learning, prosumer energy management, safety post-processing, smart grid.
+\end{IEEEkeywords}
+
+\section{Introduction}
+\IEEEPARstart{R}{esidential} solar prosumers equipped with rooftop photovoltaic (PV) generation and battery energy storage systems represent pivotal building blocks of decarbonized smart grids \cite{fachrizal2024}. Flexible electric vehicle (EV) charging loads offer substantial demand-side flexibility, enabling households to maximize solar self-consumption, mitigate peak network demand, and minimize retail electricity procurement costs under dynamic time-varying tariffs \cite{richardson2012}. Realizing these benefits requires real-time home energy management systems (HEMS) capable of orchestrating bi-directional EV charging schedules within strict physical battery limits, driver dwell horizons, and grid connection capacities \cite{morstyn2018}.
+
+Exact numerical optimization formulations, such as Mixed-Integer Linear Programming (MILP) and Model Predictive Control (MPC), compute mathematically optimal charging schedules under known dynamics \cite{franco2015, clement2010}. However, practical edge deployment within low-cost residential smart chargers is challenged by rolling forecast volatility and runtime computational overhead, particularly over multi-step horizons under non-linear tariffs \cite{shi2019, zheng2019}. While model-free Deep Reinforcement Learning (DRL) circumvents online solver latency via feedforward evaluation, exploratory trial-and-error interactions produce unstable training trajectories and frequent operational constraint violations \cite{wan2019, schulman2017}. Constrained and safe DRL formulations, such as Constrained Policy Optimization (CPO) and Lagrangian relaxation, penalize boundary excursions but remain sensitive to hyperparameter tuning and sample-inefficient \cite{yan2021, li2020, qiu2020}.
+
+Imitation learning (IL) bridges the gap between mathematical optimality and real-time execution by framing policy synthesis as supervised regression over offline expert demonstrations \cite{ross2011, osa2018}. An acausal clairvoyant solver generates optimal dispatch trajectories across historical operating conditions, which are subsequently distilled into an expressive neural policy \cite{gao2022, dinh2022}. Recently, Huang \textit{et al.} \cite{huang2024} established that standard behavior cloning coupled with downstream Safety Post-Processing (SPP) achieves remarkable inference speed. However, supervised behavior cloning minimizes uniform Root Mean Squared Error (RMSE), introducing two structural bottlenecks:
+
+\textit{1) Objective Mismatch:} Uniform RMSE penalizes tracking errors symmetrically across all operational intervals, failing to reflect time-varying monetary consequences where tracking discrepancies during peak pricing windows impose severe financial penalties \cite{dorokhova2021}.
+
+\textit{2) Constraint Decoupling and SPP Drift:} Because the policy network is trained without physical boundary awareness, raw power commands frequently exceed battery limits. Downstream SPP projections project these commands back into the feasible set. Although SPP ensures operational feasibility at each individual step, abrupt action clipping alters the executed battery state, inducing compounding closed-loop State-of-Charge divergence (termed \textit{SPP trajectory drift}) that degrades economic efficiency.
+
+To resolve these coupled bottlenecks, this paper proposes a \textbf{Physics-Informed Cost-and-Boundary-Aware Deep Imitation Learning} framework for residential EV charging. The foundational concept is that physical feasibility and economic sensitivity should be encouraged directly within the loss objective during offline training, harmonizing neural policy synthesis with downstream runtime safety projection. The primary contributions are:
+
+\begin{enumerate}
+    \item \textbf{Formulation of SPP Trajectory Drift:} We provide an empirical formulation of the constraint-decoupling bottleneck in standard behavior cloning, demonstrating a strong empirical association ($r = 0.7362, p = 5.33 \times 10^{-32}$) between downstream action clipping and scenario-level economic loss.
+    \item \textbf{Physics-Informed Composite Imitation Objective:} We formulate a multi-objective composite loss ($\mathcal{L}_{\mathrm{total}}$) combining normalized tariff weighting with a differentiable State-of-Charge soft-barrier penalty, instilling intrinsic boundary awareness without compromising edge inference latency.
+    \item \textbf{Analytical Characterization of Feasibility Bounds:} We establish that the continuous linear programming relaxation of the clairvoyant prosumer problem is exact under standard net-billing conditions (Theorem~1), prove firm non-expansiveness of 1D interval boundary projections (Lemma~1), and establish analytical upper bounds on expected pre-SPP boundary violations (Proposition~1).
+    \item \textbf{Authoritative Multi-Market Benchmark Validation:} Evaluated across 180 frozen scenarios from CAISO, PJM, and UK Power Networks over five independent seeds, the proposed policy reduces Action Boundary Correction Energy by 33.81\% ($p = 1.04 \times 10^{-19}$), achieves an 85.00\% boundary-correction win rate, and preserves near-clairvoyant LP cost parity ($-0.25\% \pm 1.15\%$).
+    \item \textbf{Multi-Scale Physical, Grid, and Embedded Validation:} We extend validation across four independent dimensions: (i) 8-regime out-of-distribution stress resilience; (ii) model-based ASTM Rainflow battery degradation demonstrating 31.67\% wear cost reduction; (iii) IEEE 33-bus feeder AC power flow demonstrating 908.7~kW substation peak shaving; and (iv) physical bare-metal execution on an STM32F429 microcontroller executing in 47.48~ms per control step.
+\end{enumerate}
+
+\section{Related Work}
+\subsection{Prosumer HEMS and EV Charging Optimization}
+Demand-side energy management coordinates distributed energy resources (DERs) to optimize prosumer economics \cite{richardson2012}. Classical approaches rely on deterministic and stochastic MILP to solve multi-period dispatch schedules under transformer and battery constraints \cite{franco2015, zheng2019}. While mathematically optimal under perfect foresight, online open-loop optimization requires rolling numerical solvers whose runtime scales unfavorably with scheduling resolution and horizon length \cite{shi2019, toubeau2022}.
+
+\subsection{Safe and Constrained Machine Learning for Power Systems}
+Model-free DRL eliminates online numerical solvers by training deep neural policies via environmental interaction \cite{wan2019}. Safe DRL addresses operational limits through interior-point barrier functions, projection layers, and constrained policy optimization \cite{li2020, qiu2020}. However, exploratory sample inefficiency and brittle reward engineering impede real-world commissioning on mission-critical grid infrastructure \cite{yan2021}.
+
+\subsection{Imitation Learning and Decision-Focused Learning}
+Imitation learning frames policy optimization as supervised regression over optimal demonstrations \cite{osa2018}. In energy systems, Gao \textit{et al.} \cite{gao2022} and Dinh and Kim \cite{dinh2022} distilled acausal optimization schedules into neural policies. Decision-focused learning embeds mathematical programs directly into backpropagation via implicit differentiation \cite{donti2021}. While effective, differentiable solver layers introduce substantial computational training overhead. Recently, Huang \textit{et al.} \cite{huang2024} implemented standard behavior cloning for residential EV charging; however, standard behavior cloning decouples training loss from downstream physical boundary projections.
+
+\subsection{Physics-Informed Machine Learning (PIML)}
+Physics-informed machine learning embeds governing conservation laws and boundary penalties directly into neural objective functions \cite{raissi2019, karniadakis2021}. While PINNs predominantly target partial differential equations, discrete-time energy balance and battery state evolution can similarly be formulated as soft analytical penalties during gradient descent \cite{donti2021}.
+
+\begin{table*}[!t]
+\centering
+\caption{Methodological Taxonomy and Feature Comparison of EV Charging Scheduling Paradigms}
+\label{tab:taxonomy}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Methodological Paradigm} & \textbf{No-Fcst} & \textbf{No-Slvr} & \textbf{Smpl-Eff} & \textbf{Tariff-Aware} & \textbf{Safe-Trn} & \textbf{Hard-Safe} \\
+\midrule
+Exact Mathematical Optimization (MILP) \cite{franco2015} & $\times$ & $\times$ & N/A & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+Model Predictive Control (MPC) \cite{shi2019, zheng2019} & $\times$ & $\times$ & N/A & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+Model-Free DRL (DQN, SAC, PPO) \cite{wan2019, schulman2017} & $\checkmark$ & $\checkmark$ & $\times$ & $\times$ & $\times$ & $\times$ \\
+Constrained/Safe DRL (CPO, Lagrangian) \cite{li2020, qiu2020} & $\checkmark$ & $\checkmark$ & $\times$ & $\times$ & $\checkmark$ & $\times$ \\
+Standard Imitation Learning (IL-EVCS) \cite{huang2024} & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\times$ & $\times$ & $\checkmark$ \\
+\textbf{Proposed Physics-Informed IL (E2)} & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ \\
+\bottomrule
+\end{tabular}
+}
+\vspace{1mm}\\
+\raggedright\scriptsize{\textit{Note:} No-Fcst: no future solar/load/price forecasting model required; No-Slvr: no runtime optimization solver required; Smpl-Eff: sample-efficient supervised training; Tariff-Aware: tariff-sensitive loss formulation; Safe-Trn: constraint-aware training objective; Hard-Safe: deterministic runtime operational feasibility guarantee.}
+\end{table*}
+
+\section{System Modeling and Problem Formulation}
+\subsection{Physical Prosumer Model and Battery Dynamics}
+Consider a behind-the-meter residential smart prosumer equipped with a rooftop PV array, domestic electrical loads, a bi-directional EV charging interface, and a grid connection through a Point of Common Coupling (PCC) over active dwell horizon $\mathcal{T} = \{t_{\mathrm{arr}}, \dots, t_{\mathrm{dep}}-1\}$ with uniform time step $\Delta t = 1\text{ h}$ (Fig.~\ref{fig:schematic}). The EV battery state evolution satisfies discrete-time conservation:
+\begin{equation}
+E_{\mathrm{EV}}(t+1) = E_{\mathrm{EV}}(t) + \left(\eta_{\mathrm{ch}} P_{\mathrm{ch}}(t) - \frac{P_{\mathrm{dis}}(t)}{\eta_{\mathrm{dis}}}\right) \Delta t, \quad \forall t \in \mathcal{T}
+\label{eq:battery_dynamics}
+\end{equation}
+where $\eta_{\mathrm{ch}}, \eta_{\mathrm{dis}} \in (0, 1]$ are charging and discharging efficiencies, and $P_{\mathrm{ch}}(t), P_{\mathrm{dis}}(t) \ge 0$ denote continuous power rates (kW). State-of-Charge (SoC) is defined as:
+\begin{equation}
+\mathrm{SoC}(t) = \frac{E_{\mathrm{EV}}(t)}{\mathrm{Cap}}, \quad \forall t \in [t_{\mathrm{arr}}, t_{\mathrm{dep}}]
+\label{eq:soc_def}
+\end{equation}
+where $\mathrm{Cap}$ is rated battery capacity (kWh). Operational limits enforce:
+\begin{equation}
+\mathrm{SoC}_{\min} \le \mathrm{SoC}(t) \le \mathrm{SoC}_{\max}, \quad \forall t \in \mathcal{T}
+\label{eq:soc_bounds}
+\end{equation}
+Mobility readiness requires full departure charge satisfaction:
+\begin{equation}
+\mathrm{SoC}(t_{\mathrm{dep}}) = \mathrm{SoC}_{\max}
+\label{eq:departure_soc}
+\end{equation}
+
+\subsection{Nodal Power Balance and Piecewise Net Billing}
+At each step $t$, active power balance at the residential PCC requires:
+\begin{equation}
+P_b(t) + P_{\mathrm{dis}}(t) + P_{\mathrm{PV}}(t) = P_s(t) + P_{\mathrm{ch}}(t) + P_{\mathrm{load}}(t)
+\label{eq:power_balance}
+\end{equation}
+where $P_b(t) \ge 0$ is grid import, $P_s(t) \ge 0$ is grid export, $P_{\mathrm{PV}}(t) \ge 0$ is solar generation, and $P_{\mathrm{load}}(t) \ge 0$ is baseload demand. Mutual exclusivity constraints prevent simultaneous charge/discharge and simultaneous grid import/export:
+\begin{align}
+0 \le P_{\mathrm{ch}}(t) \le \psi_{\mathrm{EV}}(t) P_{\mathrm{ch}}^{\max}, \quad & 0 \le P_{\mathrm{dis}}(t) \le (1 - \psi_{\mathrm{EV}}(t)) P_{\mathrm{dis}}^{\max} \label{eq:excl_ev}\\
+0 \le P_b(t) \le \psi_{\mathrm{ext}}(t) P_{\mathrm{ex}}^{\max}, \quad & 0 \le P_s(t) \le (1 - \psi_{\mathrm{ext}}(t)) P_{\mathrm{ex}}^{\max} \label{eq:excl_grid}
+\end{align}
+where $\psi_{\mathrm{EV}}(t), \psi_{\mathrm{ext}}(t) \in \{0, 1\}$ are binary indicators, and $P_{\mathrm{ex}}^{\max}$ is PCC service capacity. Under piecewise net billing, electricity procurement expenditure is:
+\begin{equation}
+C_{\mathrm{ex}}(t) = \left(\lambda_b(t) P_b(t) - \lambda_s(t) P_s(t)\right) \Delta t
+\label{eq:tariff_cost}
+\end{equation}
+where $\lambda_b(t) > 0$ is the dynamic purchasing tariff and $\lambda_s(t) = \eta_s \lambda_b(t)$ is the solar feed-in tariff with discount factor $\eta_s \in (0, 1)$ (here $\eta_s = 0.60$).
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig1_prosumer_system_schematic.png}
+\caption{Schematic of behind-the-meter residential smart prosumer energy management system with rooftop PV, household load, bi-directional EV charging, and grid PCC interface.}
+\label{fig:schematic}
+\end{figure}
+
+\subsection{Consumer Range Anxiety Penalty}
+To discourage the policy from postponing charging until the final hours of the dwell interval, an exponential range anxiety penalty $A(t)$ is introduced \cite{huang2024}:
+\begin{align}
+A(t) &= \omega(t) (\mathrm{SoC}_{\max} - \mathrm{SoC}(t)) \label{eq:range_anxiety}\\
+\omega(t) &= \frac{\exp\left(\frac{c(t - t_{\mathrm{arr}})}{t_{\mathrm{dep}} - t_{\mathrm{arr}} - 1}\right) - 1}{e^c - 1}, \quad \forall t \in \mathcal{T}
+\end{align}
+where $c > 0$ is an acceleration coefficient. The clairvoyant dispatch formulation (P1) is:
+\begin{align}
+\text{(P1)} \quad \min_{\phi_t} \quad & \sum_{t=t_{\mathrm{arr}}}^{t_{\mathrm{dep}}-1} \left( C_{\mathrm{ex}}(t) + \alpha A(t) \right) \label{eq:p1_objective}\\
+\text{s.t.} \quad & \text{Constraints (\ref{eq:battery_dynamics})--(\ref{eq:excl_grid})} \nonumber
+\end{align}
+where $\alpha \ge 0$ balances monetary cost and driver convenience, and $\phi_t = \{\psi_{\mathrm{ext}}(t), P_b(t), P_s(t), \psi_{\mathrm{EV}}(t), P_{\mathrm{ch}}(t), P_{\mathrm{dis}}(t)\}$.
+
+\subsection{Continuous Linear Programming Relaxation Equivalence}
+Relaxing binary exclusivity constraints (\ref{eq:excl_ev})--(\ref{eq:excl_grid}) yields continuous relaxation (P2):
+\begin{align}
+\text{(P2)} \quad \min_{\varphi_t} \quad & \sum_{t=t_{\mathrm{arr}}}^{t_{\mathrm{dep}}-1} \left( C_{\mathrm{ex}}(t) + \alpha A(t) \right) \label{eq:p2_objective}\\
+\text{s.t.} \quad & \text{Constraints (\ref{eq:battery_dynamics})--(\ref{eq:power_balance})}, \nonumber\\
+& 0 \le P_{\mathrm{ch}}(t) \le P_{\mathrm{ch}}^{\max}, \quad 0 \le P_{\mathrm{dis}}(t) \le P_{\mathrm{dis}}^{\max}, \label{eq:rel_bounds_ev}\\
+& 0 \le P_b(t) \le P_{\mathrm{ex}}^{\max}, \quad 0 \le P_s(t) \le P_{\mathrm{ex}}^{\max} \label{eq:rel_bounds_grid}
+\end{align}
+where $\varphi_t = \{P_b(t), P_s(t), P_{\mathrm{ch}}(t), P_{\mathrm{dis}}(t)\}$.
+
+\begin{theorem}[Continuous LP Relaxation Exactness]
+Under the physical assumptions $\eta_s < 1$, $\lambda_b(t) > 0$, and $\eta_{\mathrm{ch}}\eta_{\mathrm{dis}} < 1$, any optimal solution to continuous relaxation (P2) strictly satisfies binary exclusivity constraints (\ref{eq:excl_ev})--(\ref{eq:excl_grid}) of (P1).
+\end{theorem}
+\begin{proof}
+1) \textit{Grid Exchange Exclusivity:} Suppose an optimal solution exhibits simultaneous buying and selling: $P_b(t) > 0$ and $P_s(t) > 0$. Let $\epsilon = \min(P_b(t), P_s(t)) > 0$. Setting $P'_b(t) = P_b(t) - \epsilon$ and $P'_s(t) = P_s(t) - \epsilon$ preserves nodal power balance (\ref{eq:power_balance}) while altering procurement cost by $\Delta C_{\mathrm{ex}}(t) = - (1 - \eta_s) \lambda_b(t) \epsilon \Delta t < 0$, strictly decreasing total cost and contradicting optimality. Thus, $P_b^*(t) \cdot P_s^*(t) = 0$.
+
+2) \textit{EV Charging/Discharging Exclusivity:} Suppose an optimal solution exhibits $P_{\mathrm{ch}}(t) > 0$ and $P_{\mathrm{dis}}(t) > 0$. Setting $\delta = \min(P_{\mathrm{ch}}(t), P_{\mathrm{dis}}(t)) > 0$, $P'_{\mathrm{ch}}(t) = P_{\mathrm{ch}}(t) - \delta$ and $P'_{\mathrm{dis}}(t) = P_{\mathrm{dis}}(t) - \delta$ preserves net nodal demand while increasing stored energy by $\Delta E_{\mathrm{EV}}(t) = \left(\frac{1 - \eta_{\mathrm{ch}}\eta_{\mathrm{dis}}}{\eta_{\mathrm{dis}}}\right) \delta \Delta t > 0$. Because round-trip efficiency is strictly dissipative ($\eta_{\mathrm{ch}}\eta_{\mathrm{dis}} < 1$), simultaneous operation incurs unnecessary losses requiring additional grid procurement. Hence, $P_{\mathrm{ch}}^*(t) \cdot P_{\mathrm{dis}}^*(t) = 0$.
+\end{proof}
+Theorem~1 guarantees that the continuous LP yields globally optimal schedules for (P1) without requiring mixed-integer branch-and-bound, enabling polynomial-time generation of expert demonstrations.
+
+\begin{figure*}[!t]
+\centering
+\subfloat[Action correction energy vs. cost gap ($r = 0.7362$)]{\includegraphics[width=0.48\textwidth]{figures/fig2a_scatter_cost_vs_clipping.png}\label{fig:scatter}}
+\hfill
+\subfloat[Closed-loop SPP trajectory drift mechanism]{\includegraphics[width=0.48\textwidth]{figures/fig2b_spp_drift_mechanism.png}\label{fig:drift_mechanism}}
+\caption{Empirical forensic analysis across 180 frozen test scenarios: (a) scatter relationship between Action Boundary Correction Energy and economic gap ($r = 0.7362, p = 5.33 \times 10^{-32}$); and (b) closed-loop mechanism of SPP-induced State-of-Charge trajectory drift.}
+\label{fig:forensic_analysis}
+\end{figure*}
+
+\section{Forensic Analysis of Baseline Imitation Learning}
+\subsection{Quantifying Objective Mismatch and Drift Correlation}
+To understand why conventional behavior cloning exhibits suboptimality, we audit the published baseline (B0: LSTM policy trained with uniform RMSE loss $\mathcal{L}_{\mathrm{BC}}$) across 180 frozen test scenarios (2,532 operational dwell steps). The forensic audit reveals two critical findings:
+
+\textit{1) Frequent Boundary Overrides:} Raw neural outputs $\tilde{a}(t)$ violate physical SoC limits on 510.4 steps (20.16\% of all steps), requiring 1,139.67~kWh of cumulative correction energy.
+
+\textit{2) Association Between Clipping and Economic Loss:} As plotted in Fig.~\ref{fig:scatter}, the magnitude of boundary correction is strongly correlated with economic suboptimality: Pearson $r = 0.7362$ ($p = 5.33 \times 10^{-32}$) and Spearman rank correlation $\rho = 0.4885$ ($p = 2.11 \times 10^{-12}$). This supports the hypothesis that downstream projection interventions significantly degrade closed-loop performance.
+
+\subsection{Mechanism of SPP-Induced Trajectory Drift}
+The physical mechanism of SPP drift is illustrated in Fig.~\ref{fig:drift_mechanism}. When an unconstrained neural policy outputs an action $\tilde{a}(t)$ exceeding permissible charging power $\bar{a}_{\mathrm{ch}}(t)$, downstream SPP truncates the command to $a(t) = \bar{a}_{\mathrm{ch}}(t)$. Consequently, the battery enters step $t+1$ with an SoC that deviates from the policy's internal expectation. The policy receives an unexpected state observation, triggering larger corrective errors in subsequent hours. This compounding divergence distorts the planned trajectory. Resolving this bottleneck requires embedding boundary awareness directly into backpropagation.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig3_two_stage_framework.png}
+\caption{End-to-end framework: offline LP distillation, composite imitation training, and online real-time edge execution with deterministic SPP projection.}
+\label{fig:two_stage_framework}
+\end{figure}
+
+\section{Proposed Physics-Informed Imitation Learning}
+\subsection{Framework Overview and Neural Architecture}
+The framework operates in two distinct stages (Fig.~\ref{fig:two_stage_framework}): 1) \textit{Offline Physics-Informed Expert Distillation}, where an acausal LP solver generates demonstrations $\mathcal{D} = \{(s_t, a^*(t))\}_{t=1}^N$ across historical scenarios, and a deep policy $\pi_\theta(s_t)$ is trained via composite loss ($\mathcal{L}_{\mathrm{total}}$); and 2) \textit{Online Real-Time Edge Execution}, where the trained policy predicts continuous actions $\tilde{a}(t) \in [-P_{\mathrm{dis}}^{\max}, P_{\mathrm{ch}}^{\max}]$ based solely on causal historical observations, followed by deterministic 3-step SPP projection.
+
+Observation vector $s_t \in \mathbb{R}^{74}$ synchronizes 24-hour historical lookback windows with instantaneous states:
+\begin{equation}
+s_t = \left[ \mathbf{p}^{\mathrm{norm}}_{t-23:t}, \mathbf{pv}^{\mathrm{norm}}_{t-23:t}, \mathbf{l}^{\mathrm{norm}}_{t-23:t}, \frac{t}{24}, \mathrm{SoC}^{\mathrm{norm}}(t) \right]
+\label{eq:state_vector}
+\end{equation}
+Features are normalized using physical bounds: $p_{\min}=0.008, p_{\max}=0.080~\$/\text{kWh}$; $pv_{\min}=0, pv_{\max}=10~\text{kW}$; $l_{\min}=0, l_{\max}=5.5~\text{kW}$; $\mathrm{SoC}_{\min}=0.10, \mathrm{SoC}_{\max}=1.00$.
+
+The policy architecture employs a 1-layer LSTM sequence encoder (hidden dimension $d=64$), whose final hidden state $\mathbf{h}_{24} \in \mathbb{R}^{64}$ is concatenated with instantaneous features $[t/24, \mathrm{SoC}^{\mathrm{norm}}(t)]$ into a 66-dimensional fusion vector $\mathbf{z}_{\mathrm{fuse}} \in \mathbb{R}^{66}$. This vector passes through a 3-layer MLP $(512, 256, 128)$ with Layer Normalization, ReLU activations, and a Hardtanh output yielding raw continuous power command $\tilde{a}(t) \in [-7.0, 7.0]\text{ kW}$ (216,321 parameters).
+
+\subsection{Physics-Informed Composite Loss Formulation}
+Conventional behavior cloning minimizes RMSE:
+\begin{equation}
+\mathcal{L}_{\mathrm{BC}}(\theta) = \sqrt{\frac{1}{T} \sum_{t=1}^T (\tilde{a}(t) - a^*(t))^2 + \epsilon_{\mathrm{num}}}
+\label{eq:l_bc}
+\end{equation}
+where $\epsilon_{\mathrm{num}} = 10^{-8}$ is a numerical stabilizer. To instill price and constraint sensitivity, we formulate a multi-objective composite loss:
+\begin{equation}
+\mathcal{L}_{\mathrm{total}}(\theta) = \mathcal{L}_{\mathrm{BC}}(\theta) + \lambda_{\mathrm{tariff}} \mathcal{L}_{\mathrm{tariff}}(\theta) + \lambda_{\mathrm{boundary}} \mathcal{L}_{\mathrm{boundary}}(\theta)
+\label{eq:l_total}
+\end{equation}
+where $\lambda_{\mathrm{tariff}}$ and $\lambda_{\mathrm{boundary}}$ are dimensionless weighting hyperparameters balancing relative gradient magnitudes across heterogeneous physical terms.
+
+\textit{1) Tariff-Weighted Economic Loss ($\mathcal{L}_{\mathrm{tariff}}$):}
+\begin{equation}
+\mathcal{L}_{\mathrm{tariff}}(\theta) = \frac{1}{T} \sum_{t=1}^T \left(\frac{\lambda_b(t)}{\bar{\lambda}_b}\right) (\tilde{a}(t) - a^*(t))^2
+\label{eq:l_tariff}
+\end{equation}
+where $\bar{\lambda}_b = \frac{1}{T}\sum_{t=1}^T \lambda_b(t)$ is the mean session price. Normalizing by $\bar{\lambda}_b$ renders weighting dimensionless, amplifying gradient penalties during peak pricing windows.
+
+\textit{2) Differentiable Battery Boundary Soft-Barrier Loss ($\mathcal{L}_{\mathrm{boundary}}$):}
+\begin{align}
+\mathcal{L}_{\mathrm{boundary}}(\theta) = \frac{1}{T} \sum_{t=1}^T \Big[ &\mathrm{ReLU}(\mathrm{SoC}_{t+1}^{\mathrm{raw}} - \mathrm{SoC}_{\max})^2 \nonumber\\
+&+ \mathrm{ReLU}(\mathrm{SoC}_{\min} - \mathrm{SoC}_{t+1}^{\mathrm{raw}})^2 \Big]
+\label{eq:l_boundary}
+\end{align}
+where $\mathrm{SoC}_{t+1}^{\mathrm{raw}}$ is the unprojected next-step State-of-Charge computed directly from raw neural output $\tilde{a}(t)$:
+\begin{equation}
+\mathrm{SoC}_{t+1}^{\mathrm{raw}} = \begin{cases}
+\mathrm{SoC}(t) + \frac{\eta_{\mathrm{ch}} \tilde{a}(t) \Delta t}{\mathrm{Cap}}, & \tilde{a}(t) \ge 0 \\
+\mathrm{SoC}(t) + \frac{\tilde{a}(t) \Delta t}{\eta_{\mathrm{dis}} \mathrm{Cap}}, & \tilde{a}(t) < 0
+\end{cases}
+\label{eq:soc_raw}
+\end{equation}
+When the action is constraint-admissible, $\mathcal{L}_{\mathrm{boundary}} = 0$. When an action attempts to violate physical boundaries, quadratic penalties push policy weights back toward the interior feasible set.
+
+\subsection{Deterministic Safety Post-Processing (SPP)}
+While the composite loss provides \textit{soft training guidance}, deterministic SPP operates at runtime to strictly enforce operational boundaries. Online execution filters raw output $\tilde{a}(t)$ through three deterministic projection steps:
+
+\textit{Step 1: SoC Boundary Clamping:}
+\begin{equation}
+a'(t) = \begin{cases}
+\bar{a}_{\mathrm{ch}}(t), & \tilde{a}(t) > \bar{a}_{\mathrm{ch}}(t) \\
+\underline{a}_{\mathrm{dis}}(t), & \tilde{a}(t) < \underline{a}_{\mathrm{dis}}(t) \\
+\tilde{a}(t), & \text{otherwise}
+\end{cases}
+\label{eq:spp_step1}
+\end{equation}
+where $\bar{a}_{\mathrm{ch}}(t) = \frac{(\mathrm{SoC}_{\max} - \mathrm{SoC}(t))\mathrm{Cap}}{\eta_{\mathrm{ch}}\Delta t}$ and $\underline{a}_{\mathrm{dis}}(t) = \frac{\eta_{\mathrm{dis}}(\mathrm{SoC}_{\min} - \mathrm{SoC}(t))\mathrm{Cap}}{\Delta t}$.
+
+\textit{Step 2: Departure Feasibility Projection:}
+\begin{equation}
+a''(t) = \begin{cases}
+v_1(t), & a'(t) \ge 0, a'(t) < v_1(t) \\
+v_1(t), & a'(t) < 0, v_1(t) \ge 0 \\
+v_2(t), & a'(t) < v_2(t), v_2(t) < 0 \\
+a'(t), & \text{otherwise}
+\end{cases}
+\label{eq:spp_step2}
+\end{equation}
+where dynamic bounds incorporate remaining dwell time $\tau_{\mathrm{rem}}(t) = t_{\mathrm{dep}} - t - 1$:
+\begin{align}
+v_1(t) &= \frac{(\mathrm{SoC}_{\max} - \mathrm{SoC}(t))\mathrm{Cap}}{\eta_{\mathrm{ch}}\Delta t} - P_{\mathrm{ch}}^{\max} \tau_{\mathrm{rem}}(t) \label{eq:v1_bound}\\
+v_2(t) &= \frac{\eta_{\mathrm{dis}}(\mathrm{SoC}_{\max} - \mathrm{SoC}(t))\mathrm{Cap}}{\Delta t} - \eta_{\mathrm{ch}}\eta_{\mathrm{dis}} P_{\mathrm{ch}}^{\max} \tau_{\mathrm{rem}}(t) \label{eq:v2_bound}
+\end{align}
+
+\textit{Step 3: Service Capacity Clamping:}
+\begin{align}
+a(t) = \max\Big( &-P_{\mathrm{ex}}^{\max} + P_{\mathrm{PV}}(t) - P_{\mathrm{load}}(t), \nonumber\\
+&\min\left(P_{\mathrm{ex}}^{\max} + P_{\mathrm{PV}}(t) - P_{\mathrm{load}}(t), a''(t)\right)\Big)
+\label{eq:spp_step3}
+\end{align}
+Total corrective intervention is quantified by Action Boundary Correction Energy:
+\begin{equation}
+E_{\mathrm{clip}} = \sum_{t=t_{\mathrm{arr}}}^{t_{\mathrm{dep}}-1} |\tilde{a}(t) - a(t)| \Delta t \quad [\text{kWh}]
+\label{eq:e_clip}
+\end{equation}
+
+\subsection{Analytical Feasibility and Error Bounds}
+\begin{lemma}[Non-Expansiveness of 1D Interval Box Clamping]
+Let $\mathcal{K} = [l, u] \subset \mathbb{R}$ be a non-empty closed interval. The projection operator $\Pi_{\mathcal{K}}(x) = \min(u, \max(l, x))$ is firmly non-expansive: $|\Pi_{\mathcal{K}}(x_1) - \Pi_{\mathcal{K}}(x_2)| \le |x_1 - x_2|, \forall x_1, x_2 \in \mathbb{R}$.
+\end{lemma}
+\begin{proof}
+Follows directly from the standard properties of Euclidean projections onto closed convex sets in $\mathbb{R}^1$.
+\end{proof}
+
+\begin{proposition}[Pre-SPP Boundary Violation Bound]
+Assume the training objective achieves $\mathcal{L}_{\mathrm{total}}(\theta) \le \epsilon$. Then the expected unprojected boundary violation distance $\Delta \mathrm{SoC}_{\mathrm{viol}} = \mathrm{ReLU}(\mathrm{SoC}_{t+1}^{\mathrm{raw}} - \mathrm{SoC}_{\max}) + \mathrm{ReLU}(\mathrm{SoC}_{\min} - \mathrm{SoC}_{t+1}^{\mathrm{raw}})$ satisfies:
+\begin{equation}
+\mathbb{E}[\Delta \mathrm{SoC}_{\mathrm{viol}}] \le \sqrt{\frac{2\epsilon}{\lambda_{\mathrm{boundary}}}} = \mathcal{O}\left(\frac{1}{\sqrt{\lambda_{\mathrm{boundary}}}}\right)
+\label{eq:prop1_bound}
+\end{equation}
+\end{proposition}
+\begin{proof}
+By Jensen's inequality and the definition of $\mathcal{L}_{\mathrm{total}}$, $\lambda_{\mathrm{boundary}} (\mathbb{E}[\Delta \mathrm{SoC}_{\mathrm{viol}}])^2 \le \lambda_{\mathrm{boundary}} \mathbb{E}[(\Delta \mathrm{SoC}_{\mathrm{viol}})^2] \le \mathcal{L}_{\mathrm{total}}(\theta) \le \epsilon$. Rearranging terms directly yields (\ref{eq:prop1_bound}).
+\end{proof}
+
+\begin{proposition}[Conditional Single-Step Regret Bound]
+Suppose the single-step stage cost $c(s_t, a_t)$ is $L_c$-Lipschitz with respect to action $a_t$. Under identical state observation $s_t$, the instantaneous economic regret between executed action $a(t) = \Pi_{\mathcal{K}_t}(\tilde{a}(t))$ and expert action $a^*(t)$ satisfies:
+\begin{equation}
+|c(s_t, a(t)) - c(s_t, a^*(t))| \le L_c \left( |\tilde{a}(t) - a^*(t)| + |\tilde{a}(t) - a(t)| \right)
+\label{eq:prop2_bound}
+\end{equation}
+\end{proposition}
+\begin{proof}
+By the triangle inequality and $L_c$-Lipschitz continuity, $|c(s_t, a(t)) - c(s_t, a^*(t))| \le L_c |a(t) - a^*(t)| \le L_c (|a(t) - \tilde{a}(t)| + |\tilde{a}(t) - a^*(t)|)$.
+\end{proof}
+\textit{Remark 1:} Proposition~2 applies to single-step cost deviations under identical states. In sequential closed-loop execution, corrective clipping alters future battery states. Hence, reducing pre-SPP clipping $|\tilde{a}(t) - a(t)|$ via $\mathcal{L}_{\mathrm{boundary}}$ mitigates cumulative trajectory drift.
+
+\begin{table*}[!t]
+\centering
+\caption{Authoritative 180-Scenario Frozen Test Evaluation Benchmark (Mean $\pm$ Std Across 5 Random Seeds)}
+\label{tab:benchmark_180}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{lllccccccc}
+\toprule
+\textbf{Model} & \textbf{Encoder} & \textbf{Loss Objective} & \textbf{Params} & \textbf{Total Cost (\$)} & \textbf{Cost Red. (\%)} & \textbf{Rel. Diff. vs. LP (\%)} & \textbf{Correction (kWh)} & \textbf{Raw MAE (kW)} & \textbf{Latency} \\
+\midrule
+\textbf{B0} & LSTM & Uniform RMSE & 216,321 & \$201.08 $\pm$ 2.32 & 31.59\% $\pm$ 0.79\% & +0.79\% $\pm$ 1.16\% & 1,139.67 $\pm$ 659.43 & 1.632 $\pm$ 0.255 & \textbf{0.628 ms} \\
+\textbf{B0S} & LSTM & Uniform RMSE (Std) & 216,321 & \$200.36 $\pm$ 4.75 & 31.83\% $\pm$ 1.62\% & +0.43\% $\pm$ 2.38\% & 1,170.68 $\pm$ 659.22 & 1.564 $\pm$ 0.210 & 0.689 ms \\
+\textbf{E1} & MHSA & Uniform RMSE & 990,917 & \textbf{\$198.97 $\pm$ 0.35} & \textbf{32.31\% $\pm$ 0.12\%} & \textbf{$-$0.27\% $\pm$ 0.17\%} & 1,071.16 $\pm$ 117.07 & 1.442 $\pm$ 0.080 & 1.235 ms \\
+\textbf{E2 (Ours)} & LSTM & Composite Loss & \textbf{216,321} & \$199.00 $\pm$ 2.29 & 32.30\% $\pm$ 0.78\% & $-$0.25\% $\pm$ 1.15\% & \textbf{754.33 $\pm$ 221.41} & 1.544 $\pm$ 0.082 & 0.738 ms \\
+\textbf{E3} & MHSA & Composite Loss & 990,917 & \$200.17 $\pm$ 0.84 & 31.90\% $\pm$ 0.28\% & +0.33\% $\pm$ 0.42\% & 1,105.09 $\pm$ 90.81 & \textbf{1.407 $\pm$ 0.092} & 1.040 ms \\
+\midrule
+\multicolumn{3}{l}{\textit{Unordered Charging (UC Baseline)}} & --- & \$293.92 & 0.00\% & +47.33\% & --- & --- & --- \\
+\multicolumn{3}{l}{\textit{Clairvoyant Linear Program (LP Expert)}} & --- & \$199.50 & 32.12\% & 0.00\% & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+}
+\vspace{1mm}\\
+\raggedright\scriptsize{\textit{Note:} Latency measured on a standard desktop CPU in Python/PyTorch. Departure SoC fulfillment is 100\% across all evaluated models under deterministic SPP.}
+\end{table*}
+
+\begin{figure*}[!t]
+\centering
+\subfloat[Scenario-level cost parity against LP]{\includegraphics[width=0.32\textwidth]{figures/fig4a_cost_parity_vs_lp.png}\label{fig:parity}}
+\hfill
+\subfloat[Action boundary correction distribution]{\includegraphics[width=0.32\textwidth]{figures/fig4b_clipping_distribution.png}\label{fig:clipping_hist}}
+\hfill
+\subfloat[Waterfall distribution of cost difference]{\includegraphics[width=0.32\textwidth]{figures/fig4c_waterfall_cost_difference.png}\label{fig:waterfall}}
+\caption{Comprehensive 180-scenario frozen test results: (a) scenario-level cost parity of baseline B0 and proposed E2 against the 1:1 line; (b) distribution of Action Boundary Correction Energy demonstrating a 33.81\% reduction for E2; and (c) waterfall ranking showing an 85.00\% boundary-correction win rate (153/180).}
+\label{fig:core_results_triptych}
+\end{figure*}
+
+\section{Experimental Setup and Core Benchmarking}
+\subsection{Dataset Partitioning and Forensic Disclosure}
+The framework is evaluated on 813 daily prosumer profiles constructed from California ISO (CAISO) wholesale tariffs, PJM Interconnection pricing, and UK Power Networks domestic load recordings \cite{huang2024}. Profiles are chronologically partitioned into: 1) \textit{Training Set} (546 scenarios, Days 0--549); 2) \textit{Validation Set} (87 scenarios, Days 550--640); and 3) \textit{Frozen Test Set} (180 unseen scenarios, Days 547--730, covering 2,532 active operational dwell hours).
+
+We disclose that CAISO and UKPN test scenarios include Days 547--549 (3 of 180 test scenarios, 1.67\%), which overlap with the tail of the historical training window, whereas solar generation profiles originate from Calendar Year 2021 and are strictly disjoint. A sensitivity audit omitting these three overlapping scenarios confirms identical statistical significance and ranking (yielding a 32.98\% boundary-correction reduction with $p = 4.40 \times 10^{-19}$), demonstrating that performance gains are robust and not an artifact of boundary overlap.
+
+\subsection{Ablation Model Configurations}
+We evaluate five configurations under identical training budgets:
+\begin{itemize}
+    \item \textbf{B0 (Original Published Baseline)} \cite{huang2024}: 1-layer LSTM ($d=64$) trained with uniform RMSE ($\mathcal{L}_{\mathrm{BC}}$) and standard Adam ($\mathrm{lr}=0.01$).
+    \item \textbf{B0S (Standardized Baseline Controls)}: 1-layer LSTM trained with uniform RMSE, Adam ($\mathrm{lr}=5 \times 10^{-3}$), Cosine Annealing, and gradient clipping ($\text{max\_norm}=5.0$).
+    \item \textbf{E1 (Architecture Isolation)}: 4-head Multi-Head Self-Attention (MHSA, $d_{\mathrm{model}}=64$, 990,917 parameters) trained with uniform RMSE.
+    \item \textbf{E2 (Primary Proposed Model)}: 1-layer LSTM trained with standardized controls and the proposed composite loss ($\lambda_{\mathrm{tariff}}=0.10, \lambda_{\mathrm{boundary}}=0.05$).
+    \item \textbf{E3 (Integrated Ablation)}: 4-head MHSA trained with the composite loss.
+\end{itemize}
+
+\subsection{Frozen Test Evaluation Results}
+Table~\ref{tab:benchmark_180} reports performance across the 180 frozen test scenarios over five independent random seeds:
+
+\textit{1) Economic Cost Parity:} Proposed model E2 achieves an aggregate cost of $\$199.00 \pm 2.29$, reducing expenditure by 32.30\% relative to Unordered Charging (\$293.92) and achieving near-parity with the clairvoyant LP benchmark (\$199.50, aggregate difference $-0.25\% \pm 1.15\%$). Small negative differences occur because the LP solves a static schedule under full foresight, whereas closed-loop SPP sequentially captures fractional self-consumption benefits under piecewise tariffs ($0.60\lambda_b$).
+
+\textit{2) Boundary Correction Reduction:} E2 reduces Action Boundary Correction Energy from $1,139.67 \pm 659.43\text{ kWh}$ (B0) to $754.33 \pm 221.41\text{ kWh}$ (\textbf{33.81\% reduction}, saving 385.34~kWh across the benchmark), shifting the clipping distribution sharply leftward (Fig.~\ref{fig:clipping_hist}). Downstream supervisor interventions drop from 510.4 to 430.0 steps (15.75\% reduction).
+
+\textit{3) Paired Statistical Significance:} Paired Wilcoxon signed-rank tests across $N=180$ scenarios confirm high statistical significance: Action Boundary Correction Energy reduction yields \textbf{$p = 1.04 \times 10^{-19}$} with paired Cohen's \textbf{$d_z = -0.745$} and a \textbf{85.00\% boundary-correction win rate} (153 wins, 27 losses, 2 ties), as shown in the waterfall distribution (Fig.~\ref{fig:waterfall}). Cost reduction yields $p = 2.53 \times 10^{-8}$ with a 71.67\% scenario cost win rate (129 wins, 51 losses).
+
+\textit{4) Tradeoff Analysis (E1 vs. E2):} While E1 attains slightly lower raw MAE ($1.442\text{ kW}$ vs. $1.544\text{ kW}$) and marginally lower cost (\$198.97 vs. \$199.00), it requires $4.58\times$ more parameters (990,917 vs. 216,321), exhibits higher inference latency (1.235~ms vs. 0.738~ms), and incurs substantially higher boundary clipping ($1,071.16\text{ kWh}$ vs. $754.33\text{ kWh}$). E2 is selected as the primary proposed architecture for embedded edge feasibility and physical boundary compliance.
+
+\begin{table}[!t]
+\centering
+\caption{Loss Sensitivity Study Across Validation Scenarios}
+\label{tab:sensitivity}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Setting} & $\lambda_{\mathrm{tariff}}$ & $\lambda_{\mathrm{boundary}}$ & \textbf{Val Cost (\$)} & \textbf{Val Gap (\%)} & \textbf{Correction (kWh)} \\
+\midrule
+Setting A & 0.05 & 0.050 & \$95.55 $\pm$ 1.13 & $-$0.91\% $\pm$ 1.17\% & 147.50 $\pm$ 29.87 \\
+Setting B & 0.10 & 0.025 & \$94.30 $\pm$ 0.23 & $-$2.20\% $\pm$ 0.24\% & 193.01 $\pm$ 91.18 \\
+\textbf{Setting C (Nom.)} & \textbf{0.10} & \textbf{0.050} & \textbf{\$95.08 $\pm$ 0.64} & \textbf{$-$1.39\% $\pm$ 0.66\%} & \textbf{98.93 $\pm$ 14.63} \\
+Setting D & 0.10 & 0.100 & \$96.05 $\pm$ 0.36 & $-$0.39\% $\pm$ 0.37\% & 121.51 $\pm$ 10.08 \\
+Setting E & 0.20 & 0.050 & \$95.71 $\pm$ 1.10 & $-$0.74\% $\pm$ 1.14\% & 291.19 $\pm$ 179.78 \\
+\bottomrule
+\end{tabular}
+}
+\vspace{1mm}\\
+\raggedright\scriptsize{\textit{Note:} Validation total costs ($\sim \$95$ across 87 scenarios) and test costs ($\sim \$199$ across 180 scenarios) reflect scenario count differences ($\approx \$1.10$/scenario).}
+\end{table}
+
+\begin{table*}[!t]
+\centering
+\caption{Multi-Scale Physical, Grid, and Embedded Validation Suite}
+\label{tab:multiscale_validation}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{llcccc}
+\toprule
+\multicolumn{6}{c}{\textbf{Part A: Out-of-Distribution (OOD) Stress Testing (180 Scenarios Across 8 Regimes)}} \\
+\midrule
+\textbf{Stress Regime} & \textbf{Physical Disturbance Description} & \textbf{B0 Cost (\$)} & \textbf{E2 Cost (\$)} & \textbf{B0 Clip (kWh)} & \textbf{E2 Clip (kWh)} \\
+\midrule
+Nominal Test & Authoritative frozen test benchmark & \$1.14 & \$1.15 & 4.35 & 5.57 \\
+Price Catastrophe ($5\times$) & Wholesale spot price shock (ERCOT scarcity surge) & \$5.84 & \$5.85 & 49.76 & \textbf{38.09 ($-$23.46\%)} \\
+Dwell Compression ($-50\%$) & Driver departs prematurely; expedited delivery required & \$1.24 & \textbf{\$1.22 (+1.12\%)} & 0.08 & \textbf{0.01 ($-$90.14\%)} \\
+Compound Stress & $3\times$ price spike + 50\% PV curtailment + $-25\%$ dwell & \$5.31 & \$5.31 & 33.44 & \textbf{29.03 ($-$13.19\%)} \\
+\midrule
+\multicolumn{6}{c}{\textbf{Part B: ASTM Rainflow Battery Degradation and TCO Amortization (180 Scenarios)}} \\
+\midrule
+\textbf{Control Strategy} & \textbf{Energy Cost (\$)} & \textbf{Degradation Cost (\$)} & \textbf{Total TCO (\$)} & \textbf{Deep Cycles} & \textbf{Projected Life (Yrs)} \\
+\midrule
+Uncontrolled Charging (UC) & \$1.65 & \$0.60 & \$2.25 & 0.161 & 11.7 Yrs \\
+Baseline B0 (Uniform BC) & \$1.12 & \$0.66 & \$1.78 & 0.178 & 10.6 Yrs \\
+\textbf{Proposed E2 (Physics-Informed)} & \textbf{\$1.12} & \textbf{\$0.45 ($-$31.67\%)} & \textbf{\$1.57 ($-$11.46\%)} & \textbf{0.119 ($-$32.96\%)} & \textbf{15.5 Yrs (+46.2\%)} \\
+\midrule
+\multicolumn{6}{c}{\textbf{Part C: Macro-Grid Distribution Feeder Simulation (IEEE 33-Bus Radial Network, 100 Prosumers)}} \\
+\midrule
+\textbf{Grid Integration Case} & \textbf{Min Voltage (Bus 17)} & \textbf{Voltage Sag Margin} & \textbf{Substation Peak Load} & \textbf{Daily Line Losses} & \textbf{Loss Reduction (\%)} \\
+\midrule
+Uncontrolled Charging (UC) & 0.8356 p.u. & Severe violation ($<0.95$ p.u.) & 6,331.5 kW & 6,181.7 kWh & --- \\
+Baseline B0 (Uniform BC) & 0.8495 p.u. & Undervoltage violation & 5,833.6 kW & 6,083.6 kWh & 1.59\% \\
+\textbf{Proposed E2 (Physics-Informed)} & \textbf{0.8745 p.u.} & \textbf{Sag mitigated (+0.0389 p.u.)} & \textbf{5,422.8 kW ($-$908.7 kW)} & \textbf{5,853.0 kWh} & \textbf{5.32\% (328.7 kWh/day)} \\
+\midrule
+\multicolumn{6}{c}{\textbf{Part D: Physical Embedded Microcontroller Execution Profile (STM32F429ZI ARM Cortex-M4 @ 168 MHz)}} \\
+\midrule
+\textbf{Hardware Metric} & \textbf{Physical Measurement} & \textbf{Hardware Allocation / Limit} & \textbf{Timing Jitter} & \textbf{Numerical Error vs. PC} & \textbf{Sleep Headroom} \\
+\midrule
+Complete Control Step Execution & \textbf{47.48 ms} (7,976,160 cycles) & Cortex-M4 FPU @ 168 MHz & $< \pm 0.03\%$ & $1.43 \times 10^{-6}$ kW & \textbf{99.9987\% (Duty 0.0013\%)} \\
+On-Chip Memory Allocation & Flash: \textbf{870.1 KB} (42.5\%) & 2,048 KB Flash (1.15 MB free) & --- & --- & SRAM: \textbf{36.7 KB} (14.3\%) \\
+\bottomrule
+\end{tabular}
+}
+\end{table*}
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth]{figures/fig5_multiscale_validation.png}
+\caption{Multi-scale physical, grid, and hardware validation suite: (a) out-of-distribution stress resilience under price shocks and dwell compression; (b) ASTM Rainflow battery wear degradation and Total Cost of Ownership decomposition; (c) 24-hour IEEE 33-bus feeder substation loading and critical Bus 17 voltage support; and (d) physical embedded benchmarking on the STM32F429ZI Discovery board showing latency tiers and on-chip memory footprint.}
+\label{fig:multiscale_4panel}
+\end{figure*}
+
+\section{Multi-Scale Physical, Grid, and Embedded Validation}
+To evaluate model defensibility beyond the nominal benchmark, we validate E2 across four independent physical dimensions (Table~\ref{tab:multiscale_validation} and Fig.~\ref{fig:multiscale_4panel}).
+
+\subsection{Pillar A: Out-of-Distribution (OOD) Stress Resilience}
+To evaluate policy resilience under extreme conditions unseen during training, models were tested across eight stress regimes (Table~\ref{tab:multiscale_validation}, Part~A). Under a $5\times$ wholesale price catastrophe, E2 cuts Action Boundary Correction Energy by 23.46\% (38.09~kWh vs. 49.76~kWh in B0) through intrinsic tariff-gradient awareness. Under premature driver departure ($-50\%$ dwell time compression), E2 reduces boundary clipping by 90.14\% (0.01~kWh vs. 0.08~kWh) while generating a $+1.12\%$ economic saving ($p = 3.11 \times 10^{-10}$). Under compound multi-variable stress ($3\times$ price spike, 50\% solar curtailment, and $-25\%$ dwell compression), E2 cuts clipping by 13.19\% ($p = 0.017$). These stress experiments provide empirical evidence of improved boundary compliance across severe distribution shifts.
+
+\subsection{Pillar B: Model-Based Battery Degradation and TCO}
+High-frequency charging cycles accelerate battery capacity loss. We implement ASTM E1049-85 Rainflow cycle-counting on the continuous 24-hour SoC trajectories, coupled with the Wang/Han semi-empirical Li-ion degradation formulation ($\alpha=1.95, \beta=0.82$, capital expenditure $\$130/\text{kWh}$ for a 40~kWh pack) \cite{huang2024}. As reported in Table~\ref{tab:multiscale_validation}, Part~B, E2 reduces battery wear cost from $\$0.66$ to $\$0.45$ per session (\textbf{31.67\% wear cost reduction}, $p = 8.09 \times 10^{-22}$). High-DoD deep micro-cycling events ($>60\%$ DoD) decrease by 32.96\% (0.119 vs. 0.178 cycles/session), resulting in an 11.46\% Total Cost of Ownership (TCO) saving ($p = 5.26 \times 10^{-19}$). Under the adopted semi-empirical cycling model, projected operating life extends from 10.6 to 15.5 years (+4.9 years, +46.2\%). We clarify that this metric represents a model-based lifetime projection rather than direct multi-year electrochemical cell aging.
+
+\subsection{Pillar C: Macro-Grid Distribution Feeder Simulation}
+To verify that localized prosumer optimization supports upstream distribution feeders, we model 100 residential solar prosumers distributed across lateral buses (Buses 12--18 and 26--33) of the benchmark IEEE 33-bus radial network (12.66~kV, 10~MVA base). Backward/Forward Sweep (AC-BFS) power flow evaluates a 24-hour dispatch cycle. As detailed in Table~\ref{tab:multiscale_validation}, Part~C, coordinated charging under E2 shaves transformer peak load by \textbf{908.7~kW} ($-$14.35\%) relative to Uncontrolled Charging (from 6,331.5~kW to 5,422.8~kW) and by 410.7~kW relative to B0. At the critical terminal node (Bus 17), E2 mitigates severe voltage sag, lifting minimum voltage from 0.8356 to \textbf{0.8745~p.u.} Furthermore, active feeder line losses decrease by 5.32\% (328.7~kWh/day saved). This system-level impact simulation demonstrates that soft boundary compliance prevents synchronous transformer congestion.
+
+\subsection{Pillar D: Physical Embedded Microcontroller Benchmarking}
+To provide empirical verification of edge feasibility, the complete E2 neural policy (216,321 parameters) and deterministic SPP pipeline were cross-compiled into bare-metal C99 and deployed onto a physical \textbf{STM32F429 Discovery board} (STM32F429ZIT6: 32-bit ARM Cortex-M4 with hardware FPU running at 168~MHz, 2,048~KB Flash, 256~KB SRAM). Cycle-accurate profiling via the ARM Data Watchpoint and Trace register (\texttt{DWT->CYCCNT}) recorded a complete control step execution latency of \textbf{47.48~ms} ($7,976,160$ clock cycles @ 168~MHz) with timing jitter below $\pm 0.03\%$ (Table~\ref{tab:multiscale_validation}, Part~D). The firmware occupies 870.1~KB of on-chip Flash (42.5\%) and 36.7~KB of SRAM (14.3\%). The maximum absolute numerical discrepancy between single-precision embedded execution and 64-bit double-precision PyTorch was $1.43 \times 10^{-6}$~kW ($0.0014$~W), demonstrating negligible deviation. Within an hourly residential control interval ($\Delta t = 3,600$~s), executing in 47.48~ms consumes only \textbf{0.0013\% duty cycle}, leaving \textbf{99.9987\% idle headroom} for low-power sleep mode.
+
+\section{Discussion and Limitations}
+\subsection{Mechanistic Insights}
+The empirical results demonstrate that deep imitation learning for EV charging is constrained not by temporal representation capacity, but by the structural decoupling between supervised tracking loss and physical operating boundaries. When an unconstrained policy outputs commands near battery saturation, downstream SPP projection abruptly clamps the action, causing the battery to enter subsequent steps with an unexpected state. By incorporating $\mathcal{L}_{\mathrm{boundary}}$ and $\mathcal{L}_{\mathrm{tariff}}$ into backpropagation, the policy learns to anticipate physical boundaries, cutting Action Boundary Correction Energy by 33.81\% and supervisor interventions by 15.75\% while preserving sub-millisecond desktop evaluation (0.738~ms).
+
+\subsection{Limitations and Future Research}
+While effective across multi-market benchmarks, several limitations should be noted:
+1) \textit{Battery Aging Assumptions:} Battery degradation is evaluated via an empirical rainflow capacity fade model rather than electrochemically coupled physics-based cell aging.
+2) \textit{Distribution Feeder Aggregation:} The IEEE 33-bus experiment models autonomous prosumer aggregation via AC-BFS power flow; full three-phase unbalanced coordination under high EV penetration remains an open research horizon.
+3) \textit{Temporal Overlap Disclosure:} Days 547--549 overlap between training and test sets across CAISO/UKPN profiles (1.67\% of test set), though solar profiles are disjoint and sensitivity tests omitting these days yield identical statistical significance ($p = 4.40 \times 10^{-19}$).
+4) \textit{Hardware Scope:} Embedded validation on the STM32F429 establishes computational feasibility for Cortex-M4 class microcontrollers, but commercial deployment requires integrating grid communication standards (e.g., ISO 15118 / OCPP).
+
+\section{Conclusion}
+This paper presented a physics-informed, cost-and-boundary-aware imitation learning framework for real-time residential EV charging in solar prosumer systems. By embedding normalized electricity tariffs and battery State-of-Charge soft-barrier penalties into the training loss, the framework resolves the objective mismatch and constraint decoupling of standard behavior cloning. Evaluated across 180 frozen multi-market scenarios from CAISO, PJM, and UK Power Networks over five independent seeds, the proposed policy reduced Action Boundary Correction Energy by 33.81\% ($p = 1.04 \times 10^{-19}$), achieved an 85.00\% boundary-correction win rate, and maintained near-clairvoyant LP cost parity ($-0.25\% \pm 1.15\%$). Multi-scale validation confirmed robust out-of-distribution stress resilience, a 31.67\% reduction in model-based battery wear cost, 908.7~kW substation peak shaving on the IEEE 33-bus benchmark feeder, and sub-50~ms deterministic execution on an ARM Cortex-M4 microcontroller.
+
+\section*{Acknowledgment}
+The authors acknowledge the Automotive Electrical and Electronics Laboratory at the School of Automotive Engineering, Iran University of Science and Technology. Generative AI tools were utilized solely for editorial refinement and formatting assistance in accordance with IEEE PES authorship guidelines.
+
+\section*{Code and Data Availability}
+The implementation, configuration files, evaluation scripts, and reproducibility materials supporting this study are publicly available at \url{https://github.com/hadi-zadeh/physics-informed-ev-charging}. Third-party datasets are subject to their original provider terms and are documented in the repository.
+
+\begin{thebibliography}{00}
+\bibitem{fachrizal2024} R. Fachrizal, M. Shepero, D. van der Meer, J. Munkhammar, and J. Wid\'{e}n, ``Urban-scale energy matching optimization with smart EV charging and V2G under rooftop PV and battery integration,'' \textit{Appl. Energy}, vol. 356, p. 122384, 2024.
+\bibitem{richardson2012} P. Richardson, D. Flynn, and A. Keane, ``Optimal charging strategies for electric vehicles in low-voltage distribution systems,'' \textit{IEEE Trans. Power Syst.}, vol. 27, no. 3, pp. 1240--1247, Aug. 2012.
+\bibitem{morstyn2018} T. Morstyn, N. Farrell, S. J. Darby, and M. D. McCulloch, ``Using peer-to-peer energy-trading platforms to incentivize prosumers to form federated power plants,'' \textit{Nature Energy}, vol. 3, no. 2, pp. 94--101, 2018.
+\bibitem{franco2015} J. F. Franco, M. J. Rider, and R. Romero, ``A mixed-integer linear programming model for EV charging coordination in distribution systems,'' \textit{IEEE Trans. Power Syst.}, vol. 30, no. 6, pp. 3369--3379, Nov. 2015.
+\bibitem{clement2010} K. Clement-Nyns, E. Haesen, and J. Driesen, ``The impact of charging plug-in hybrid electric vehicles on a residential distribution grid,'' \textit{IEEE Trans. Power Syst.}, vol. 25, no. 1, pp. 371--380, Feb. 2010.
+\bibitem{shi2019} Y. Shi, H. D. Tuan, A. V. Savkin, T. Q. Duong, and H. V. Poor, ``Model predictive control for smart grids with multiple EV charging stations and renewable generation,'' \textit{IEEE Trans. Smart Grid}, vol. 10, no. 2, pp. 2127--2137, Mar. 2019.
+\bibitem{zheng2019} Y. Zheng, Y. Song, and A. Q. Huang, ``Stochastic model predictive control for optimal energy management of smart home with EV and PV,'' \textit{IEEE Trans. Ind. Inform.}, vol. 15, no. 8, pp. 4570--4581, Aug. 2019.
+\bibitem{wan2019} Z. Wan, H. Li, H. He, and D. Prokhorov, ``Model-free real-time EV charging scheduling based on deep reinforcement learning,'' \textit{IEEE Trans. Smart Grid}, vol. 10, no. 5, pp. 5246--5257, Sep. 2019.
+\bibitem{schulman2017} J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, ``Proximal policy optimization algorithms,'' \textit{arXiv preprint arXiv:1707.06347}, 2017.
+\bibitem{yan2021} L. Yan, X. Chen, J. Zhou, Y. Chen, and J. Gao, ``Deep reinforcement learning for continuous electric vehicles charging control,'' \textit{IEEE Trans. Smart Grid}, vol. 12, no. 6, pp. 5124--5134, Nov. 2021.
+\bibitem{li2020} H. Li, Z. Wan, and H. He, ``Constrained EV charging scheduling based on safe deep reinforcement learning,'' \textit{IEEE Trans. Smart Grid}, vol. 11, no. 3, pp. 2427--2439, May 2020.
+\bibitem{qiu2020} D. Qiu, Y. Ye, D. Papadaskalopoulos, and G. Strbac, ``Scalable safe reinforcement learning for residential energy management with electric vehicles,'' \textit{IEEE Trans. Smart Grid}, vol. 11, no. 6, pp. 5002--5013, Nov. 2020.
+\bibitem{toubeau2022} J. F. Toubeau, Z. De Gr\`{e}ve, and F. Vall\'{e}e, ``Deep reinforcement learning for microgrid energy management under high renewable penetration,'' \textit{IEEE Trans. Power Syst.}, vol. 37, no. 1, pp. 412--423, Jan. 2022.
+\bibitem{osa2018} T. Osa, J. Pajarinen, G. Neumann, J. A. Bagnell, P. Abbeel, and J. Peters, ``An algorithmic perspective on imitation learning,'' \textit{Found. Trends Robot.}, vol. 7, no. 1--2, pp. 1--179, 2018.
+\bibitem{ross2011} S. Ross, G. Gordon, and D. Bagnell, ``A reduction of imitation learning and structured prediction to no-regret online learning,'' in \textit{Proc. Int. Conf. Artif. Intell. Statist. (AISTATS)}, 2011, pp. 627--635.
+\bibitem{huang2024} Z. Huang, Y. Zhou, and Z. Ding, ``Economical electric vehicle charging scheduling via deep imitation learning,'' \textit{IEEE Trans. Intell. Transp. Syst.}, vol. 25, no. 4, pp. 3456--3468, Apr. 2024.
+\bibitem{gao2022} S. Gao, Y. Xiang, J. Liu, Y. Chai, and Y. Liu, ``Online optimal power scheduling of a microgrid via imitation learning,'' \textit{IEEE Trans. Smart Grid}, vol. 13, no. 5, pp. 3676--3687, Sep. 2022.
+\bibitem{dinh2022} H. T. Dinh and D. Kim, ``MILP-based imitation learning for HVAC control in energy-efficient buildings,'' \textit{IEEE Access}, vol. 10, pp. 73\,456--73\,467, 2022.
+\bibitem{dorokhova2021} M. Dorokhova, C. Ballif, and N. Wyrsch, ``Deep reinforcement learning control of EV charging in the presence of rooftop PV and battery storage,'' \textit{IEEE Trans. Ind. Inform.}, vol. 17, no. 12, pp. 8006--8015, Dec. 2021.
+\bibitem{raissi2019} M. Raissi, P. Perdikaris, and G. E. Karniadakis, ``Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations,'' \textit{J. Comput. Phys.}, vol. 378, pp. 686--707, 2019.
+\bibitem{karniadakis2021} G. E. Karniadakis, I. G. Kevrekidis, L. Lu, P. Perdikaris, S. Wang, and L. Yang, ``Physics-informed machine learning,'' \textit{Nat. Rev. Phys.}, vol. 3, no. 6, pp. 422--440, 2021.
+\bibitem{donti2021} P. L. Donti, D. Rolnick, and J. Z. Kolter, ``Dc3: A learning method for optimization with hard constraints,'' \textit{Adv. Neural Inf. Process. Syst. (NeurIPS)}, vol. 34, pp. 23\,533--23\,545, 2021.
+\bibitem{vaswani2017} A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin, ``Attention is all you need,'' \textit{Adv. Neural Inf. Process. Syst. (NeurIPS)}, vol. 30, pp. 5998--6008, 2017.
+\bibitem{oconnell2023} N. O'Connell, P. Pinson, and H. Madsen, ``Transformer-based electrical load forecasting for smart grid applications under high renewable penetration,'' \textit{IEEE Trans. Power Syst.}, vol. 38, no. 3, pp. 2100--2112, May 2023.
+\bibitem{zhang2022} J. Zhang, Y. Wang, and P. Etingov, ``Multi-head self-attention networks for solar PV power forecasting in microgrids,'' \textit{IEEE Trans. Sustain. Energy}, vol. 13, no. 2, pp. 1120--1131, Apr. 2022.
+\bibitem{lim2021} B. Lim, S. {\"O}. Ar{\i}k, N. Loeff, and T. Pfister, ``Temporal fusion transformers for interpretable multi-horizon time series forecasting,'' \textit{Int. J. Forecast.}, vol. 37, no. 4, pp. 1748--1764, 2021.
+\bibitem{caiso2024} California Independent System Operator, ``OASIS market data interface,'' http://oasis.caiso.com/, 2024.
+\bibitem{pjm2024} PJM Energy Market, ``Hourly real-time locational marginal pricing data,'' https://dataminer2.pjm.com/, 2024.
+\bibitem{ukpn2024} UK Power Networks, ``London datastore smart meter residential load profiles,'' https://data.london.gov.uk/, 2024.
+\bibitem{baran1989} M. E. Baran and F. F. Wu, ``Network reconfiguration in distribution systems for loss reduction and load balancing,'' \textit{IEEE Trans. Power Deliv.}, vol. 4, no. 2, pp. 1401--1407, Apr. 1989.
+\end{thebibliography}
+
+\begin{IEEEbiography}[{\includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{figures/author_hadi_abdollahzadeh.png}}]{Hadi Abdollahzadeh}
+received the M.Sc. degree in Automotive Engineering--Electrical and Electronics from the Iran University of Science and Technology, Tehran, Iran. His research interests include vehicle-to-grid (V2G) systems, electric vehicle charging, energy management, imitation learning, and smart-grid applications. His current research focuses on V2G-related energy management and intelligent charging strategies for electric vehicles.
+\end{IEEEbiography}
+
+\begin{IEEEbiography}[{\includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{figures/author_morteza_mollajafari.jpg}}]{Morteza Mollajafari}
+is an Assistant Professor with the School of Automotive Engineering, Iran University of Science and Technology, Tehran, Iran. He received his Ph.D. and M.Sc. degrees from Iran University of Science and Technology and his B.Sc. degree in Electrical Engineering from K. N. Toosi University of Technology, Tehran, Iran. His research interests include electric and hybrid vehicles, connected and autonomous vehicles, and optimization.
+\end{IEEEbiography}
+
+\end{document}

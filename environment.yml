@@ -1,0 +1,16 @@
+name: piml-ev-charging
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pytorch>=2.0.0
+  - numpy>=1.23.0
+  - scipy>=1.9.0
+  - pandas>=1.5.0
+  - matplotlib>=3.6.0
+  - pip
+  - pip:
+      - cvxpy>=1.3.0
+      - cylp>=0.91.5

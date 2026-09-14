@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software or benchmark artifacts in your research, please cite our article below."
+title: "Physics-Informed Cost-and-Boundary-Aware Deep Imitation Learning for Residential EV Charging in Solar Prosumer Systems"
+abstract: "Deep imitation learning framework for residential electric vehicle charging in solar prosumer systems embedding normalized electricity tariffs and battery State-of-Charge boundary penalties directly into neural backpropagation."
+authors:
+  - family-names: Abdollahzadeh
+    given-names: Hadi
+    email: Abdollahzadeh_hadi@auto.iust.ac.ir
+    affiliation: "School of Automotive Engineering, Iran University of Science and Technology, Tehran, Iran"
+  - family-names: Mollajafari
+    given-names: Morteza
+    email: mollajafari@iust.ac.ir
+    affiliation: "School of Automotive Engineering, Iran University of Science and Technology, Tehran, Iran"
+repository-code: "https://github.com/hadi-zadeh/physics-informed-ev-charging"
+license: MIT
+date-released: "2026-09-14"
+keywords:
+  - "electric vehicle charging"
+  - "deep imitation learning"
+  - "physics-informed machine learning"
+  - "safety post-processing"
+  - "smart grid"
+  - "embedded microcontrollers"
