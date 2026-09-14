@@ -17,6 +17,7 @@
 \theoremstyle{remark}
 \newtheorem{remark}{Remark}
 
+\newcommand{\hreflink}[2]{\pdfstartlink user{/Subtype /Link /Border [0 0 0] /A << /S /URI /URI (#1) >>}#2\pdfendlink}
 \hyphenation{op-tical net-works semi-conduc-tor}
 
 \begin{document}
@@ -494,7 +495,7 @@ This paper presented a physics-informed, cost-and-boundary-aware imitation learn
 The authors acknowledge the Automotive Electrical and Electronics Laboratory at the School of Automotive Engineering, Iran University of Science and Technology. Generative AI tools were utilized solely for editorial refinement and formatting assistance in accordance with IEEE PES authorship guidelines.
 
 \section*{Code and Data Availability}
-The implementation, configuration files, evaluation scripts, and reproducibility materials supporting this study are publicly available at \url{https://github.com/hadi-zadeh/physics-informed-ev-charging}. Third-party datasets are subject to their original provider terms and are documented in the repository.
+The implementation, configuration files, evaluation scripts, and reproducibility materials supporting this study are publicly available at \hreflink{https://github.com/hadi-zadeh/physics-informed-ev-charging}{\url{https://github.com/hadi-zadeh/physics-informed-ev-charging}}. Third-party datasets are subject to their original provider terms and are documented in the repository.
 
 \begin{thebibliography}{00}
 \bibitem{fachrizal2024} R. Fachrizal, M. Shepero, D. van der Meer, J. Munkhammar, and J. Wid\'{e}n, ``Urban-scale energy matching optimization with smart EV charging and V2G under rooftop PV and battery integration,'' \textit{Appl. Energy}, vol. 356, p. 122384, 2024.
@@ -523,9 +524,9 @@ The implementation, configuration files, evaluation scripts, and reproducibility
 \bibitem{oconnell2023} N. O'Connell, P. Pinson, and H. Madsen, ``Transformer-based electrical load forecasting for smart grid applications under high renewable penetration,'' \textit{IEEE Trans. Power Syst.}, vol. 38, no. 3, pp. 2100--2112, May 2023.
 \bibitem{zhang2022} J. Zhang, Y. Wang, and P. Etingov, ``Multi-head self-attention networks for solar PV power forecasting in microgrids,'' \textit{IEEE Trans. Sustain. Energy}, vol. 13, no. 2, pp. 1120--1131, Apr. 2022.
 \bibitem{lim2021} B. Lim, S. {\"O}. Ar{\i}k, N. Loeff, and T. Pfister, ``Temporal fusion transformers for interpretable multi-horizon time series forecasting,'' \textit{Int. J. Forecast.}, vol. 37, no. 4, pp. 1748--1764, 2021.
-\bibitem{caiso2024} California Independent System Operator, ``OASIS market data interface,'' http://oasis.caiso.com/, 2024.
-\bibitem{pjm2024} PJM Energy Market, ``Hourly real-time locational marginal pricing data,'' https://dataminer2.pjm.com/, 2024.
-\bibitem{ukpn2024} UK Power Networks, ``London datastore smart meter residential load profiles,'' https://data.london.gov.uk/, 2024.
+\bibitem{caiso2024} California Independent System Operator, ``OASIS market data interface,'' \hreflink{http://oasis.caiso.com/}{\url{http://oasis.caiso.com/}}, 2024.
+\bibitem{pjm2024} PJM Energy Market, ``Hourly real-time locational marginal pricing data,'' \hreflink{https://dataminer2.pjm.com/}{\url{https://dataminer2.pjm.com/}}, 2024.
+\bibitem{ukpn2024} UK Power Networks, ``London datastore smart meter residential load profiles,'' \hreflink{https://data.london.gov.uk/}{\url{https://data.london.gov.uk/}}, 2024.
 \bibitem{baran1989} M. E. Baran and F. F. Wu, ``Network reconfiguration in distribution systems for loss reduction and load balancing,'' \textit{IEEE Trans. Power Deliv.}, vol. 4, no. 2, pp. 1401--1407, Apr. 1989.
 \end{thebibliography}
 
